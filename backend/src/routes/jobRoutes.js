@@ -15,12 +15,13 @@ const router = express.Router();
 router.get('/', getJobs);
 router.get('/:id', getJobById);
 
-// Protected routes - Employer only
+// Protected routes
 router.use(protect);
-router.use(authorize('employer'));
 
+// Employer only routes
+router.use(authorize('employer'));
+router.get('/my-jobs', getMyJobs);
 router.post('/', createJob);
-router.get('/my-jobs', getMyJobs); // Move after the middleware setup
 router.put('/:id', updateJob);
 router.delete('/:id', deleteJob);
 

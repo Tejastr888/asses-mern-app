@@ -168,13 +168,12 @@ export const deleteJob = async (req, res) => {
 // @route   GET /api/jobs/my-jobs
 // @access  Private (Employer only)
 export const getMyJobs = async (req, res) => {
-    try {
-        const jobs = await Job.find({ employer: req.user._id })
+    try {        const jobs = await Job.find({ employer: req.user._id })
             .populate({
                 path: 'employer',
                 select: 'companyName location'
             })
-            .select('title description location jobType status createdAt applicationsCount')
+            .select('title description location employmentType workplaceType status createdAt')
             .sort({ createdAt: -1 });
 
         // Get application counts for each job

@@ -1,199 +1,183 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 import { Formik, Form, Field } from 'formik';
-import * as Yup from 'yup';
-import axios from 'axios';
-
-const jobTypeOptions = [
-  'Full-time',
-  'Part-time',
-  'Contract',
-  'Freelance',
-  'Internship',
-  'Remote'
-];
-
-const PostJobSchema = Yup.object().shape({
-  title: Yup.string()
-    .min(5, 'Too Short!')
-    .max(100, 'Too Long!')
-    .required('Required'),
-  description: Yup.string()
-    .min(50, 'Description must be at least 50 characters')
-    .required('Required'),
-  location: Yup.string().required('Required'),
-  jobType: Yup.string().required('Required'),
-  salaryRange: Yup.string().required('Required'),
-  requiredSkills: Yup.string().required('Required'),
-});
+import { FaBriefcase } from 'react-icons/fa';
+import { useSelector } from 'react-redux';
+import { JobSchema } from '../components/jobs/validationSchema';
+import { BasicJobInfo, RequirementsSection } from '../components/jobs/JobFormSections';
+import { LocationAndSalarySection, BenefitsSection } from '../components/jobs/AdditionalSections';
+import axiosInstance from '../utils/axios';
 
 const PostJob = () => {
-  const navigate = useNavigate();
-  const { user } = useSelector((state) => state.auth);
+    const navigate = useNavigate();
+    const { user } = useSelector((state) => state.auth);
+    const [error, setError] = useState(null);
 
-  if (user?.role !== 'employer') {
+    const initialValues = {
+        title: '',
+        description: '',
+        requirements: {
+            skills: [],
+            experience: {
+                minimum: 0,
+                preferred: 0
+            },
+            education: {
+                level: '',
+                field: ''
+            }
+        },
+        employmentType: '',
+        workplaceType: '',
+        location: {
+            city: '',
+            state: '',
+            country: '',
+            remote: false
+        },
+        salary: {
+            min: 0,
+            max: 0,
+            currency: 'USD',
+            isNegotiable: false
+        },
+        benefits: [],
+        flexibleSchedule: false,
+        accommodations: {
+            available: false,
+            description: ''
+        },
+        status: 'draft',
+        applicationDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 30 days from now
+    };
+
+    const handleSubmit = async (values, { setSubmitting, setStatus }) => {
+        try {
+            // Process skills array if it's a string
+            if (typeof values.requirements.skills === 'string') {
+                values.requirements.skills = values.requirements.skills
+                    .split(',')
+                    .map(skill => skill.trim())
+                    .filter(Boolean);
+            }
+
+            // Set location.remote based on workplaceType
+            values.location.remote = values.workplaceType === 'remote';
+
+            const response = await axiosInstance.post('/api/jobs', values);
+            
+            setStatus({ success: 'Job posted successfully!' });
+            // Redirect to job details page after a brief delay
+            setTimeout(() => {
+                navigate(`/jobs/${response.data._id}`);
+            }, 1500);
+        } catch (err) {
+            console.error('Error posting job:', err);
+            setStatus({ error: err.response?.data?.message || 'Failed to post job' });
+        }
+        setSubmitting(false);
+    };
+
     return (
-      <div className="text-center text-red-600 p-4">
-        Access denied. Only employers can post jobs.
-      </div>
-    );
-  }
+        <div className="max-w-4xl mx-auto px-4 py-8">
+            <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                <FaBriefcase className="text-indigo-600" />
+                Post a New Job
+            </h1>
 
-  return (
-    <div className="max-w-3xl mx-auto">
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Post a New Job
-          </h3>
-          <div className="mt-5">
+            {error && (
+                <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
+                    {error}
+                </div>
+            )}
+
             <Formik
-              initialValues={{
-                title: '',
-                description: '',
-                location: '',
-                jobType: '',
-                salaryRange: '',
-                requiredSkills: '',
-              }}
-              validationSchema={PostJobSchema}
-              onSubmit={async (values, { setSubmitting, setStatus }) => {
-                try {
-                  const jobData = {
-                    ...values,
-                    employer: user._id,
-                    requiredSkills: values.requiredSkills.split(',').map(skill => skill.trim()),
-                  };
-
-                  await axios.post('/api/jobs', jobData);
-                  navigate('/jobs');
-                } catch (err) {
-                  setStatus(err.response?.data?.message || 'Failed to post job');
-                  setSubmitting(false);
-                }
-              }}
+                initialValues={initialValues}
+                validationSchema={JobSchema}
+                onSubmit={handleSubmit}
             >
-              {({ errors, touched, status, isSubmitting }) => (
-                <Form className="space-y-6">
-                  {status && (
-                    <div className="text-red-600 text-sm">
-                      {status}
-                    </div>
-                  )}
+                {({ values, errors, touched, isSubmitting, status }) => (
+                    <Form className="space-y-6">
+                        {status?.error && (
+                            <div className="text-red-600 bg-red-50 p-4 rounded">
+                                {status.error}
+                            </div>
+                        )}
+                        {status?.success && (
+                            <div className="text-green-600 bg-green-50 p-4 rounded">
+                                {status.success}
+                            </div>
+                        )}
 
-                  <div>
-                    <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-                      Job Title
-                    </label>
-                    <Field
-                      name="title"
-                      type="text"
-                      className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                      placeholder="e.g., Senior Software Engineer"
-                    />
-                    {errors.title && touched.title && (
-                      <div className="text-red-600 text-sm mt-1">{errors.title}</div>
-                    )}
-                  </div>
+                        <BasicJobInfo errors={errors} touched={touched} />
+                        <RequirementsSection values={values} errors={errors} touched={touched} />
+                        <LocationAndSalarySection values={values} errors={errors} touched={touched} />
+                        <BenefitsSection values={values} errors={errors} touched={touched} />
 
-                  <div>
-                    <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                      Job Description
-                    </label>
-                    <Field
-                      name="description"
-                      as="textarea"
-                      rows={4}
-                      className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                      placeholder="Describe the job responsibilities and requirements"
-                    />
-                    {errors.description && touched.description && (
-                      <div className="text-red-600 text-sm mt-1">{errors.description}</div>
-                    )}
-                  </div>
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Application Deadline
+                                    </label>
+                                    <Field
+                                        type="date"
+                                        name="applicationDeadline"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    />
+                                    {errors.applicationDeadline && touched.applicationDeadline && (
+                                        <div className="text-red-600 text-sm mt-1">{errors.applicationDeadline}</div>
+                                    )}
+                                </div>
 
-                  <div>
-                    <label htmlFor="location" className="block text-sm font-medium text-gray-700">
-                      Location
-                    </label>
-                    <Field
-                      name="location"
-                      type="text"
-                      className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                      placeholder="e.g., New York, NY or Remote"
-                    />
-                    {errors.location && touched.location && (
-                      <div className="text-red-600 text-sm mt-1">{errors.location}</div>
-                    )}
-                  </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Status
+                                    </label>
+                                    <Field
+                                        as="select"
+                                        name="status"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value="draft">Draft</option>
+                                        <option value="published">Published</option>
+                                        <option value="closed">Closed</option>
+                                        <option value="paused">Paused</option>
+                                    </Field>
+                                </div>
+                            </div>
+                        </div>
 
-                  <div>
-                    <label htmlFor="jobType" className="block text-sm font-medium text-gray-700">
-                      Job Type
-                    </label>
-                    <Field
-                      name="jobType"
-                      as="select"
-                      className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                    >
-                      <option value="">Select a job type</option>
-                      {jobTypeOptions.map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </Field>
-                    {errors.jobType && touched.jobType && (
-                      <div className="text-red-600 text-sm mt-1">{errors.jobType}</div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="salaryRange" className="block text-sm font-medium text-gray-700">
-                      Salary Range
-                    </label>
-                    <Field
-                      name="salaryRange"
-                      type="text"
-                      className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                      placeholder="e.g., $80,000 - $120,000/year"
-                    />
-                    {errors.salaryRange && touched.salaryRange && (
-                      <div className="text-red-600 text-sm mt-1">{errors.salaryRange}</div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="requiredSkills" className="block text-sm font-medium text-gray-700">
-                      Required Skills (comma-separated)
-                    </label>
-                    <Field
-                      name="requiredSkills"
-                      type="text"
-                      className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                      placeholder="e.g., JavaScript, React, Node.js"
-                    />
-                    {errors.requiredSkills && touched.requiredSkills && (
-                      <div className="text-red-600 text-sm mt-1">{errors.requiredSkills}</div>
-                    )}
-                  </div>
-
-                  <div>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSubmitting ? 'Posting...' : 'Post Job'}
-                    </button>
-                  </div>
-                </Form>
-              )}
+                        <div className="pt-5">
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(-1)}
+                                    className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="inline-flex justify-center items-center gap-2 px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                                            <span>Posting...</span>
+                                        </>
+                                    ) : (
+                                        'Post Job'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </Form>
+                )}
             </Formik>
-          </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default PostJob;
