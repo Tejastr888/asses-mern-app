@@ -10,6 +10,8 @@ import JobDetails from './pages/JobDetails';
 import PostJob from './pages/PostJob';
 import Applications from './pages/Applications';
 import Profile from './pages/Profile';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
 
 function App() {
@@ -32,6 +34,7 @@ function App() {
               <Route path="profile" element={<Profile />} />
             </Route>
           </Routes>
+          <ToastContainer position="bottom-right" />
         </div>
       </Router>
     </Provider>

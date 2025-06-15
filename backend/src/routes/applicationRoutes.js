@@ -8,7 +8,8 @@ import {
     withdrawApplication,
     getMyRecentApplications,
     getReceivedApplications,
-    getDashboardData
+    getDashboardData,
+    checkApplicationStatus
 } from '../controllers/applicationController.js';
 import { protect, authorize } from '../utils/auth.js';
 
@@ -22,6 +23,7 @@ router.post('/', authorize('jobseeker'), createApplication);
 router.get('/me', authorize('jobseeker'), getMyApplications);
 router.get('/my-applications', authorize('jobseeker'), getMyRecentApplications);
 router.put('/:id/withdraw', authorize('jobseeker'), withdrawApplication);
+router.get('/status/:jobId', authorize('jobseeker'), checkApplicationStatus);
 
 // Employer routes
 router.get('/job/:jobId', authorize('employer'), getJobApplications);

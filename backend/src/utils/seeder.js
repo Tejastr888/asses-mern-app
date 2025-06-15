@@ -91,47 +91,191 @@ const employers = [
 ];
 
 const jobs = [
-    {
-        title: 'Senior Full Stack Developer',
-        description: 'Looking for an experienced developer to join our team',
-        requirements: {
-            skills: ['JavaScript', 'React', 'Node.js', 'MongoDB', 'AWS'],
-            experience: {
-                minimum: 5,
-                preferred: 7
-            },
-            education: {
-                level: "Bachelor's Degree",
-                field: 'Computer Science'
-            }
-        },
-        employmentType: 'full-time',
-        workplaceType: 'hybrid',
-        location: {
-            city: 'San Francisco',
-            state: 'CA',
-            country: 'USA',
-            remote: true
-        },
-        salary: {
-            min: 120000,
-            max: 180000,
-            currency: 'USD',
-            isNegotiable: true
-        },
-        benefits: [
-            'Health Insurance',
-            '401(k)',
-            'Stock Options',
-            'Flexible Hours'
-        ],
-        flexibleSchedule: true,
-        accommodations: {
-            available: true,
-            description: 'We provide reasonable accommodations for qualified individuals with disabilities'
-        },
-        status: 'published'
-    }
+  {
+    title: "Senior Full Stack Developer",
+    description: "Looking for an experienced developer to join our team",
+    requirements: {
+      skills: ["JavaScript", "React", "Node.js", "MongoDB", "AWS"],
+      experience: {
+        minimum: 5,
+        preferred: 7,
+      },
+      education: {
+        level: "Bachelor's Degree",
+        field: "Computer Science",
+      },
+    },
+    employmentType: "full-time",
+    workplaceType: "hybrid",
+    location: {
+      city: "San Francisco",
+      state: "CA",
+      country: "USA",
+      remote: true,
+    },
+    salary: {
+      min: 120000,
+      max: 180000,
+      currency: "USD",
+      isNegotiable: true,
+    },
+    benefits: ["Health Insurance", "401(k)", "Stock Options", "Flexible Hours"],
+    flexibleSchedule: true,
+    accommodations: {
+      available: true,
+      description:
+        "We provide reasonable accommodations for qualified individuals with disabilities",
+    },
+    status: "published",
+  },
+  {
+    title: "Senior Full Stack Developer",
+    description: "Looking for an experienced developer to join our team",
+    requirements: {
+      skills: ["JavaScript", "React", "Node.js", "MongoDB", "AWS"],
+      experience: {
+        minimum: 5,
+        preferred: 7,
+      },
+      education: {
+        level: "Bachelor's Degree",
+        field: "Computer Science",
+      },
+    },
+    employmentType: "full-time",
+    workplaceType: "hybrid",
+    location: {
+      city: "San Francisco",
+      state: "CA",
+      country: "USA",
+      remote: true,
+    },
+    salary: {
+      min: 120000,
+      max: 180000,
+      currency: "USD",
+      isNegotiable: true,
+    },
+    benefits: ["Health Insurance", "401(k)", "Stock Options", "Flexible Hours"],
+    flexibleSchedule: true,
+    accommodations: {
+      available: true,
+      description:
+        "We provide reasonable accommodations for qualified individuals with disabilities",
+    },
+    status: "published",
+  },
+  {
+    title: "Junior Backend Developer",
+    description: "Join a fast-growing startup and build APIs using Django",
+    requirements: {
+      skills: ["Python", "Django", "REST API", "PostgreSQL"],
+      experience: {
+        minimum: 1,
+        preferred: 2,
+      },
+      education: {
+        level: "Bachelor's Degree",
+        field: "Information Technology",
+      },
+    },
+    employmentType: "full-time",
+    workplaceType: "on-site",
+    location: {
+      city: "Austin",
+      state: "TX",
+      country: "USA",
+      remote: false,
+    },
+    salary: {
+      min: 60000,
+      max: 75000,
+      currency: "USD",
+      isNegotiable: false,
+    },
+    benefits: ["Paid Vacation", "Health Insurance"],
+    flexibleSchedule: false,
+    accommodations: {
+      available: false,
+      description: "",
+    },
+    status: "published",
+  },
+  {
+    title: "UI/UX Designer",
+    description: "Design intuitive interfaces for a health-tech platform",
+    requirements: {
+      skills: ["Figma", "Adobe XD", "HTML", "CSS"],
+      experience: {
+        minimum: 2,
+        preferred: 3,
+      },
+      education: {
+        level: "Bachelor's Degree",
+        field: "Design or related field",
+      },
+    },
+    employmentType: "contract",
+    workplaceType: "remote",
+    location: {
+      city: "",
+      state: "",
+      country: "USA",
+      remote: true,
+    },
+    salary: {
+      min: 40000,
+      max: 60000,
+      currency: "USD",
+      isNegotiable: true,
+    },
+    benefits: ["Flexible Hours"],
+    flexibleSchedule: true,
+    accommodations: {
+      available: true,
+      description:
+        "Flexible workspace and screen reader-friendly UI design process",
+    },
+    status: "published",
+  },
+  {
+    title: "DevOps Engineer",
+    description:
+      "Looking for a DevOps engineer to automate deployments and manage cloud infrastructure",
+    requirements: {
+      skills: ["AWS", "Docker", "Kubernetes", "Terraform", "CI/CD"],
+      experience: {
+        minimum: 3,
+        preferred: 5,
+      },
+      education: {
+        level: "Master's Degree",
+        field: "Computer Science or related",
+      },
+    },
+    employmentType: "full-time",
+    workplaceType: "remote",
+    location: {
+      city: "",
+      state: "",
+      country: "USA",
+      remote: true,
+    },
+    salary: {
+      min: 100000,
+      max: 150000,
+      currency: "USD",
+      isNegotiable: false,
+    },
+    benefits: ["Remote Equipment Budget", "Annual Retreat", "Health Benefits"],
+    flexibleSchedule: true,
+    accommodations: {
+      available: true,
+      description:
+        "We support flexible hours and screen reader-compatible dev environments",
+    },
+    status: "draft",
+  }
 ];
 
 const seedData = async () => {
@@ -162,23 +306,24 @@ const seedData = async () => {
                 user: jobSeeker._id
             });
         }
-        console.log('JobSeeker profile created');
-
-        // Create employer profile and job
+        console.log('JobSeeker profile created');        // Create employer profile and jobs
         const employer = createdUsers.find(user => user.role === 'employer');
         if (employer) {
             const createdEmployer = await Employer.create({
                 ...employers[0],
                 user: employer._id
             });
-
-            await Job.create({
-                ...jobs[0],
-                employer: createdEmployer._id,
-                publishedAt: new Date()
-            });
+            
+            // Create jobs with proper publishedAt date based on status
+            for (const job of jobs) {
+                await Job.create({
+                    ...job,
+                    employer: createdEmployer._id,
+                    publishedAt: job.status === 'published' ? new Date() : null
+                });
+            }
+            console.log(`Employer profile and ${jobs.length} jobs created`);
         }
-        console.log('Employer profile and job created');
 
         console.log('Data seeding completed!');
         process.exit();

@@ -10,12 +10,34 @@ const applicationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'JobSeeker',
         required: true
-    },
+    },    
     status: {
         type: String,
-        enum: ['pending', 'reviewed', 'shortlisted', 'rejected', 'hired'],
+        enum: ['pending', 'reviewed', 'shortlisted', 'rejected', 'hired', 'withdrawn'],
         default: 'pending'
     },
+    withdrawnBy: {
+        type: String,
+        enum: ['jobseeker', 'employer'],
+    },
+    withdrawnReason: {
+        type: String
+    },
+    statusHistory: [{
+        status: {
+            type: String,
+            enum: ['pending', 'reviewed', 'shortlisted', 'rejected', 'hired', 'withdrawn']
+        },
+        updatedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        reason: String,
+        updatedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
     coverLetter: {
         type: String
     },
@@ -38,12 +60,6 @@ const applicationSchema = new mongoose.Schema({
             default: Date.now
         }
     }],
-    withdrawnBy: {
-        type: String,
-        enum: ['jobseeker', 'employer'],
-        default: null
-    },
-    withdrawnReason: String,
     interviewSchedule: [{
         round: Number,
         dateTime: Date,

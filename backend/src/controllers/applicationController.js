@@ -48,11 +48,33 @@ export const createApplication = async (req, res) => {
 // @access  Private (Employer only)
 export const getJobApplications = async (req, res) => {
     try {
-        const applications = await Application.find({ job: req.params.jobId })
+        const { status } = req.query;
+
+        let query = { job: req.params.jobId };
+        
+        // Add status filter if provided
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        const applications = await Application.find(query)
             .populate('jobSeeker', 'firstName lastName email')
+            .populate('statusHistory.updatedBy', 'firstName lastName role')
             .sort({ createdAt: -1 });
 
-        res.json(applications);
+        // Get applications count by status
+        const statusCounts = await Application.aggregate([
+            { $match: { job: mongoose.Types.ObjectId(req.params.jobId) } },
+            { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]);
+
+        res.json({
+            applications,
+            statusCounts: statusCounts.reduce((acc, curr) => {
+                acc[curr._id] = curr.count;
+                return acc;
+            }, {})
+        });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -68,24 +90,41 @@ export const getMyApplications = async (req, res) => {
             return res.status(403).json({ message: 'Access denied. Job seeker access only.' });
         }
 
-        console.log('Fetching applications for user:', req.user._id); // Debug log
+        const { status } = req.query;
+        let query = { jobSeeker: req.user._id };
 
-        const applications = await Application.find({ jobSeeker: req.user._id })
+        // Add status filter if provided
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        const applications = await Application.find(query)
             .populate({
                 path: 'job',
-                select: 'title location status jobType',
+                select: 'title location status employmentType workplaceType',
                 populate: {
                     path: 'employer',
                     select: 'companyName'
                 }
             })
-            .sort({ createdAt: -1 })
+            .populate('statusHistory.updatedBy', 'firstName lastName role')
+            .sort({ updatedAt: -1 })
             .lean();
 
-        console.log('Found applications:', applications.length); // Debug log
-        res.json(applications);
+        // Get status counts for the user's applications
+        const statusCounts = await Application.aggregate([
+            { $match: { jobSeeker: req.user._id } },
+            { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]);
+
+        res.json({
+            applications,
+            statusCounts: statusCounts.reduce((acc, curr) => {
+                acc[curr._id] = curr.count;
+                return acc;
+            }, {})
+        });
     } catch (error) {
-        console.error('Error in getMyApplications:', error); // Debug log
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
@@ -119,22 +158,52 @@ export const getMyRecentApplications = async (req, res) => {
 // @access  Private (Employer only)
 export const updateApplicationStatus = async (req, res) => {
     try {
-        const { status, notes } = req.body;
-        const application = await Application.findById(req.params.id);
+        const { status, reason } = req.body;
+        
+        // Validate status
+        const validStatuses = ['pending', 'reviewed', 'shortlisted', 'rejected', 'hired'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+
+        // Find application and check if employer owns the related job
+        const application = await Application.findById(req.params.id)
+            .populate('job');
 
         if (!application) {
             return res.status(404).json({ message: 'Application not found' });
         }
 
-        application.status = status;
-        if (notes) {
-            application.notes.push({
-                content: notes,
-                author: req.user._id
+        // Check if employer owns this job
+        if (application.job.employer.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        // Check if application can be updated
+        if (application.status === 'withdrawn') {
+            return res.status(400).json({ 
+                message: 'Cannot update status of withdrawn application' 
             });
         }
 
-        const updatedApplication = await application.save();
+        // Update status
+        application.status = status;
+
+        // Add to status history
+        application.statusHistory.push({
+            status,
+            updatedBy: req.user._id,
+            reason,
+            updatedAt: new Date()
+        });
+
+        await application.save();
+
+        // Return populated application
+        const updatedApplication = await Application.findById(req.params.id)
+            .populate('jobSeeker', 'firstName lastName email')
+            .populate('job', 'title employer');
+
         res.json(updatedApplication);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -174,29 +243,44 @@ export const scheduleInterview = async (req, res) => {
 // @access  Private (Job Seeker only)
 export const withdrawApplication = async (req, res) => {
     try {
-        const { reason } = req.body;
+        // Find the application
         const application = await Application.findById(req.params.id);
 
         if (!application) {
             return res.status(404).json({ message: 'Application not found' });
         }
 
+        // Check if user owns this application
         if (application.jobSeeker.toString() !== req.user._id.toString()) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        application.withdrawnBy = 'jobseeker';
-        application.withdrawnReason = reason;
-        application.status = 'withdrawn';
+        // Check if application can be withdrawn
+        if (['withdrawn', 'hired', 'rejected'].includes(application.status)) {
+            return res.status(400).json({ 
+                message: `Cannot withdraw application that is already ${application.status}` 
+            });
+        }
 
-        const updatedApplication = await application.save();
+        // Update application status
+        application.status = 'withdrawn';
+        application.withdrawnBy = 'jobseeker';
+
+        // Add to status history
+        application.statusHistory.push({
+            status: 'withdrawn',
+            updatedBy: req.user._id,
+            updatedAt: new Date()
+        });
+
+        await application.save();
 
         // Decrement applications count on job
         await Job.findByIdAndUpdate(application.job, {
             $inc: { applicationsCount: -1 }
         });
 
-        res.json(updatedApplication);
+        res.json(application);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -306,5 +390,29 @@ export const getDashboardData = async (req, res) => {
     } catch (error) {
         console.error('Dashboard data error:', error);
         res.status(500).json({ message: 'Error fetching dashboard data' });
+    }
+};
+
+// @desc    Check application status for a job
+// @route   GET /api/applications/status/:jobId
+// @access  Private (Job Seeker only)
+export const checkApplicationStatus = async (req, res) => {
+    try {
+        const application = await Application.findOne({
+            job: req.params.jobId,
+            jobSeeker: req.user._id
+        }).select('status createdAt');
+
+        if (!application) {
+            return res.json({ hasApplied: false });
+        }
+
+        res.json({
+            hasApplied: true,
+            status: application.status,
+            appliedAt: application.createdAt
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 };

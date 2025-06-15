@@ -23,17 +23,55 @@ export const createJob = async (req, res) => {
 // @access  Public
 export const getJobs = async (req, res) => {
     try {
-        const { keyword, location, jobType } = req.query;
-        let query = { status: 'published' };        if (keyword) {
-            query.title = { $regex: keyword, $options: 'i' };
+        const { 
+            keyword, 
+            location, 
+            employmentType, 
+            workplaceType,
+            accommodations,
+            flexibleSchedule,
+            salaryMin 
+        } = req.query;
+
+        let query = { status: 'published' };
+
+        // Search by keyword in title, description, and required skills
+        if (keyword) {
+            query.$or = [
+                { title: { $regex: keyword, $options: 'i' } },
+                { description: { $regex: keyword, $options: 'i' } },
+                { 'requirements.skills': { $regex: keyword, $options: 'i' } }
+            ];
         }
 
+        // Filter by location
         if (location) {
-            query.location = { $regex: location, $options: 'i' };
+            query['location.city'] = { $regex: location, $options: 'i' };
         }
 
-        if (jobType && jobType !== 'all') {
-            query.jobType = jobType;
+        // Filter by employment type
+        if (employmentType && employmentType !== 'all') {
+            query.employmentType = employmentType;
+        }
+
+        // Filter by workplace type
+        if (workplaceType && workplaceType !== 'all') {
+            query.workplaceType = workplaceType;
+        }
+
+        // Filter by accommodations availability
+        if (accommodations === 'true') {
+            query['accommodations.available'] = true;
+        }
+
+        // Filter by flexible schedule
+        if (flexibleSchedule === 'true') {
+            query.flexibleSchedule = true;
+        }
+
+        // Filter by minimum salary
+        if (salaryMin) {
+            query['salary.min'] = { $gte: parseInt(salaryMin) };
         }
 
         const jobs = await Job.find(query)

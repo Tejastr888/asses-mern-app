@@ -47,6 +47,20 @@ const Applications = () => {
     fetchApplications();
   }, [user]);
 
+  const handleWithdraw = async (applicationId) => {
+    try {
+      await axiosInstance.put(`/api/applications/${applicationId}/withdraw`);
+      
+      // Update the application status in the local state
+      setApplications(applications.map((app) =>
+        app._id === applicationId ? { ...app, status: "withdrawn" } : app
+      ));
+    } catch (err) {
+      console.error("Error withdrawing application:", err);
+      setError(err.response?.data?.message || "Failed to withdraw application");
+    }
+  };
+
   const handleStatusUpdate = async (applicationId, newStatus) => {
     try {
       await axiosInstance.put(`/api/applications/${applicationId}/status`, {
@@ -138,7 +152,7 @@ const Applications = () => {
                       </div>
                     )}
                   </div>
-                  {user.role === "employer" && application.status === "pending" && (
+                  {user.role === "employer" && application.status === "pending" ? (
                     <div className="mt-4 sm:mt-0 sm:ml-6 flex flex-shrink-0 gap-2">
                       <button
                         onClick={() => handleStatusUpdate(application._id, "accepted")}
@@ -153,6 +167,17 @@ const Applications = () => {
                         Reject
                       </button>
                     </div>
+                  ) : (
+                    user.role === "jobseeker" && application.status === "pending" && (
+                      <div className="mt-4 sm:mt-0 sm:ml-6">
+                        <button
+                          onClick={() => handleWithdraw(application._id)}
+                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                          Withdraw
+                        </button>
+                      </div>
+                    )
                   )}
                 </div>
               </li>
