@@ -42,7 +42,7 @@ export const createJob = async (req, res) => {
             publishedAt: req.body.status === 'published' ? Date.now() : null
         });
 
-        console.log('Created job:', job);
+        // console.log('Created job:', job);
 
         // Fetch and log the created job with populated employer data
         const populatedJob = await Job.findById(job._id)

@@ -32,42 +32,59 @@ export const updateApplicationStatus = createAsyncThunk(
   }
 );
 
-const applicationsSlice = createSlice({
-  name: 'applications',
+const applicationsSlice = createSlice({  name: 'applications',
   initialState: {
     applications: [],
-    loading: false,
-    error: null
-  },
-  reducers: {
+    totalApplications: 0,
+    statusCounts: {},
+    statusCountsArray: [],
+    isLoading: false,
+    isError: false,
+    message: ''
+  },reducers: {
     clearError: (state) => {
-      state.error = null;
+      state.isError = false;
+      state.message = '';
     }
   },
   extraReducers: (builder) => {
     builder
       // Handle fetchApplications
       .addCase(fetchApplications.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchApplications.fulfilled, (state, action) => {
-        state.loading = false;
-        state.applications = action.payload;
+        state.isLoading = true;
+        state.isError = false;
+        state.message = '';
+      })      .addCase(fetchApplications.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isError = false;
+        state.message = '';
+        state.applications = action.payload.applications;
+        state.totalApplications = action.payload.totalApplications;
+        state.statusCounts = action.payload.statusCounts;
+        state.statusCountsArray = action.payload.statusCountsArray;
       })
       .addCase(fetchApplications.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+        state.applications = [];
       })
       // Handle updateApplicationStatus
+      .addCase(updateApplicationStatus.pending, (state) => {
+        state.isError = false;
+        state.message = '';
+      })
       .addCase(updateApplicationStatus.fulfilled, (state, action) => {
         const { applicationId, newStatus } = action.payload;
+        state.isError = false;
+        state.message = '';
         state.applications = state.applications.map((app) =>
           app._id === applicationId ? { ...app, status: newStatus } : app
         );
       })
       .addCase(updateApplicationStatus.rejected, (state, action) => {
-        state.error = action.payload;
+        state.isError = true;
+        state.message = action.payload;
       });
   }
 });
@@ -78,5 +95,9 @@ export default applicationsSlice.reducer;
 
 // Selectors
 export const selectApplications = (state) => state.applications.applications;
-export const selectApplicationsLoading = (state) => state.applications.loading;
-export const selectApplicationsError = (state) => state.applications.error;
+export const selectApplicationsLoading = (state) => state.applications.isLoading;
+export const selectApplicationsError = (state) => state.applications.isError;
+export const selectApplicationsMessage = (state) => state.applications.message;
+export const selectTotalApplications = (state) => state.applications.totalApplications;
+export const selectStatusCounts = (state) => state.applications.statusCounts;
+export const selectStatusCountsArray = (state) => state.applications.statusCountsArray;

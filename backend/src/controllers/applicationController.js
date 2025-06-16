@@ -1,52 +1,56 @@
 import Application from '../model/Application.js';
 import Job from '../model/Job.js';
 import Employer from '../model/Employer.js';
-import JobSeeker from '../model/JobSeeker.js';
+import JobSeeker from "../model/JobSeeker.js";
 
 // @desc    Create job application
 // @route   POST /api/applications
 // @access  Private (Job Seeker only)
+// export const createApplication = async (req, res) => {
+
 export const createApplication = async (req, res) => {
-    try {
-        const { jobId, coverLetter, answers } = req.body;
+  try {
+    console.log("Creating application for user:", req.body);
+    const { jobId, coverLetter, answers } = req.body;
 
-        // Check if job exists
-        const job = await Job.findById(jobId);
-        if (!job) {
-            return res.status(404).json({ message: 'Job not found' });
-        }
-
-        // Check if user has already applied
-        const existingApplication = await Application.findOne({
-            job: jobId,
-            jobSeeker: req.user._id
-        });
-
-        if (existingApplication) {
-            return res.status(400).json({ message: 'Already applied to this job' });
-        }        // Get the JobSeeker document for the current user
-        const jobSeeker = await JobSeeker.findOne({ user: req.user._id });
-        if (!jobSeeker) {
-            return res.status(403).json({ message: 'Not authorized - JobSeeker profile not found' });
-        }
-
-        const application = await Application.create({
-            job: jobId,
-            jobSeeker: jobSeeker._id, // Use JobSeeker document ID instead of User ID
-            coverLetter,
-            answers,
-            status: 'pending'
-        });
-
-        // Increment applications count on job
-        await Job.findByIdAndUpdate(jobId, {
-            $inc: { applicationsCount: 1 }
-        });
-
-        res.status(201).json(application);
-    } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+    // Check if job exists
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
     }
+    const jobSeeker = await JobSeeker.findOne({ user: req.user._id });
+    if (!jobSeeker) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized - JobSeeker profile not found" });
+    }
+    // Check if user has already applied
+    const existingApplication = await Application.findOne({
+      job: jobId,
+      jobSeeker: jobSeeker._id,
+    });
+
+    if (existingApplication) {
+      return res.status(400).json({ message: "Already applied to this job" });
+    } // Get the JobSeeker document for the current user
+    
+    const application = await Application.create({
+      job: jobId,
+      jobSeeker: jobSeeker._id, // Use JobSeeker document ID instead of User ID
+      coverLetter,
+      answers,
+      status: "pending",
+    });
+
+    // Increment applications count on job
+    await Job.findByIdAndUpdate(jobId, {
+      $inc: { applicationsCount: 1 },
+    });
+
+    res.status(201).json(application);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
 };
 
 // @desc    Get all applications for a job
@@ -90,14 +94,23 @@ export const getJobApplications = async (req, res) => {
 // @route   GET /api/applications/me
 // @access  Private (Job Seeker only)
 export const getMyApplications = async (req, res) => {
+    console.log("Fetching applications for user:", req.user);
     try {
         // Validate user exists and has jobSeeker role
         if (!req.user || req.user.role !== 'jobseeker') {
             return res.status(403).json({ message: 'Access denied. Job seeker access only.' });
         }
 
+        const jobSeeker = await JobSeeker.findOne({ user: req.user._id });
+        if (!jobSeeker) {
+          return res
+            .status(403)
+            .json({ message: "Not authorized - JobSeeker profile not found" });
+        }
+
         const { status } = req.query;
-        let query = { jobSeeker: req.user._id };
+        
+        let query = { jobSeeker: jobSeeker._id };
 
         // Add status filter if provided
         if (status && status !== 'all') {
@@ -115,20 +128,29 @@ export const getMyApplications = async (req, res) => {
             })
             .populate('statusHistory.updatedBy', 'firstName lastName role')
             .sort({ updatedAt: -1 })
-            .lean();
-
-        // Get status counts for the user's applications
+            .lean();        // Get status counts for the user's applications
         const statusCounts = await Application.aggregate([
-            { $match: { jobSeeker: req.user._id } },
+            { $match: { jobSeeker: jobSeeker._id } },
             { $group: { _id: '$status', count: { $sum: 1 } } }
         ]);
 
+        // console.log("Applications found:", applications.length);
+        // console.log("Status counts:", statusCounts);
+
+        // Create a complete status counts object with all possible statuses
+        const allStatuses = ['pending', 'reviewed', 'shortlisted', 'rejected', 'hired', 'withdrawn'];
+        const formattedStatusCounts = allStatuses.reduce((acc, status) => {
+            const found = statusCounts.find(s => s._id === status);
+            acc[status] = found ? found.count : 0;
+            return acc;
+        }, {});
+
         res.json({
             applications,
-            statusCounts: statusCounts.reduce((acc, curr) => {
-                acc[curr._id] = curr.count;
-                return acc;
-            }, {})
+            totalApplications: applications.length,
+            statusCounts: formattedStatusCounts,
+            // Include the raw status counts for detailed analytics
+            statusCountsArray: statusCounts
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -341,7 +363,7 @@ export const getReceivedApplications = async (req, res) => {
 
         // Filter out applications for jobs that don't belong to this employer
         const validApplications = applications.filter(app => app.job);
-        
+
         res.json(validApplications);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });

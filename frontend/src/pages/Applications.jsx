@@ -1,249 +1,240 @@
 import React, { useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
-import axiosInstance from "../utils/axios";
+import {
+  fetchApplications,
+  selectStatusCounts,
+  selectTotalApplications,
+} from "../features/applications/applicationsSlice";
 
 const StatusBadge = ({ status }) => {
-  const baseClasses = "px-2 inline-flex text-xs leading-5 font-semibold rounded-full";
+  const baseClasses =
+    "px-2 inline-flex text-xs leading-5 font-semibold rounded-full";
   switch (status) {
     case "pending":
-      return <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>Pending</span>;
-    case "accepted":
-      return <span className={`${baseClasses} bg-green-100 text-green-800`}>Accepted</span>;
+      return (
+        <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>
+          Pending
+        </span>
+      );
+    case "reviewed":
+      return (
+        <span className={`${baseClasses} bg-blue-100 text-blue-800`}>
+          Reviewed
+        </span>
+      );
+    case "shortlisted":
+      return (
+        <span className={`${baseClasses} bg-green-100 text-green-800`}>
+          Shortlisted
+        </span>
+      );
     case "rejected":
-      return <span className={`${baseClasses} bg-red-100 text-red-800`}>Rejected</span>;
+      return (
+        <span className={`${baseClasses} bg-red-100 text-red-800`}>
+          Rejected
+        </span>
+      );
+    case "hired":
+      return (
+        <span className={`${baseClasses} bg-purple-100 text-purple-800`}>
+          Hired
+        </span>
+      );
+    case "withdrawn":
+      return (
+        <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
+          Withdrawn
+        </span>
+      );
     default:
-      return <span className={`${baseClasses} bg-gray-100 text-gray-800`}>{status}</span>;
+      return (
+        <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
+          {status}
+        </span>
+      );
   }
 };
 
+const StatusFilter = ({ counts, currentStatus, onStatusChange }) => {
+  const statuses = [
+    { key: 'all', label: 'All' },
+    { key: 'pending', label: 'Pending' },
+    { key: 'reviewed', label: 'Reviewed' },
+    { key: 'shortlisted', label: 'Shortlisted' },
+    { key: 'hired', label: 'Hired' },
+    { key: 'rejected', label: 'Rejected' },
+    { key: 'withdrawn', label: 'Withdrawn' }
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-4">
+      {statuses.map(({ key, label }) => (
+        <button
+          key={key}
+          onClick={() => onStatusChange(key)}
+          className={`px-3 py-1 rounded-full text-sm font-medium ${
+            currentStatus === key
+              ? 'bg-indigo-100 text-indigo-800'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          {label}
+          {counts && key !== 'all' && (
+            <span className="ml-1 text-xs">({counts[key] || 0})</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+};
+
 const Applications = () => {
+  const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  const [applications, setApplications] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const { applications, isLoading, isError, message } = useSelector(
+    (state) => state.applications
+  );
+  const statusCounts = useSelector(selectStatusCounts);
+  const totalApplications = useSelector(selectTotalApplications);
+  const [currentStatus, setCurrentStatus] = React.useState('all');
+  const filteredApplications = React.useMemo(() => {
+    if (currentStatus === 'all') return applications;
+    return applications.filter(app => app.status === currentStatus);
+  }, [applications, currentStatus]);
 
   useEffect(() => {
-    const fetchApplications = async () => {
-      if (!user) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await axiosInstance.get(
-          user.role === "employer"
-            ? "/api/applications/received"
-            : "/api/applications/my-applications"
-        );
-        setApplications(response.data);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching applications:", err);
-        setError(err.response?.data?.message || "Failed to fetch applications");
-        setLoading(false);
-      }
-    };
-
-    fetchApplications();
-  }, [user]);
-
-  const handleWithdraw = async (applicationId) => {
-    try {
-      await axiosInstance.put(`/api/applications/${applicationId}/withdraw`);
-      
-      // Update the application status in the local state
-      setApplications(applications.map((app) =>
-        app._id === applicationId ? { ...app, status: "withdrawn" } : app
-      ));
-    } catch (err) {
-      console.error("Error withdrawing application:", err);
-      setError(err.response?.data?.message || "Failed to withdraw application");
+    if (user) {
+      dispatch(fetchApplications(user.role));
     }
-  };
+  }, [user, dispatch]);
 
-  const handleStatusUpdate = async (applicationId, newStatus) => {
-    try {
-      await axiosInstance.put(`/api/applications/${applicationId}/status`, {
-        status: newStatus,
-      });
-
-      // Update the application status in the local state
-      setApplications(applications.map((app) =>
-        app._id === applicationId ? { ...app, status: newStatus } : app
-      ));
-    } catch (err) {
-      console.error("Error updating status:", err);
-      setError(err.response?.data?.message || "Failed to update application status");
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
       </div>
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-        <p>{error}</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-500">Error: {message}</div>
+      </div>
+    );
+  }
+
+  if (totalApplications === 0) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <h2 className="text-2xl font-semibold mb-4">No Applications Found</h2>
+        <Link
+          to="/jobs"
+          className="text-indigo-600 hover:text-indigo-800 font-medium"
+        >
+          Browse Jobs
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-      <div className="sm:flex sm:items-center mb-8">
-        <div className="sm:flex-auto">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            {user.role === "employer" ? "Job Applications" : "My Applications"}
-          </h1>
-          <p className="mt-2 text-sm text-gray-700">
-            {user.role === "employer"
-              ? "View and manage applications for your job postings"
-              : "Track your job applications and their status"}
-          </p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">My Applications</h1>
+        <div className="text-gray-500">
+          Total Applications: <span className="font-semibold">{totalApplications}</span>
         </div>
       </div>
 
-      {applications.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500 text-lg">
-            No applications found.
-            {user.role !== "employer" && (
-              <Link
-                to="/jobs"
-                className="text-indigo-600 hover:text-indigo-800 ml-2"
-              >
-                Browse available jobs →
-              </Link>
-            )}
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
-            {applications.map((application) => (
-              <li key={application._id} className="p-4 hover:bg-gray-50">
+      <StatusFilter
+        counts={statusCounts}
+        currentStatus={currentStatus}
+        onStatusChange={setCurrentStatus}
+      />
+      <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <ul className="divide-y divide-gray-200">
+          {filteredApplications.map((application) => (
+            <li key={application._id} className="hover:bg-gray-50">
+              <div className="px-4 py-4 sm:px-6">
                 <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {application.job?.title}
-                      </h3>
-                      <StatusBadge status={application.status} />
-                    </div>                    <div className="mt-2 flex flex-col gap-2 text-sm">
-                      {user.role === "employer" ? (
-                        <>
-                          {/* Applicant Details Section */}
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <h4 className="font-medium text-gray-900 mb-2">Applicant Details</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-600">
-                              <div>
-                                <span className="font-medium">Name: </span>
-                                {application.jobSeeker?.user ? `${application.jobSeeker.user.firstName} ${application.jobSeeker.user.lastName}` : 'Unknown'}
-                              </div>
-                              <div>
-                                <span className="font-medium">Email: </span>
-                                {application.jobSeeker?.user?.email || 'N/A'}
-                              </div>
-                              <div>
-                                <span className="font-medium">Category: </span>
-                                {application.jobSeeker?.category ? application.jobSeeker.category.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : 'N/A'}
-                              </div>
-                              <div>
-                                <span className="font-medium">Skills: </span>
-                                {application.jobSeeker?.skills?.length > 0 
-                                  ? application.jobSeeker.skills.join(', ') 
-                                  : 'No skills listed'}
-                              </div>
-                              {application.jobSeeker?.preferences?.expectedSalary && (
-                                <div>
-                                  <span className="font-medium">Expected Salary: </span>
-                                  {`${application.jobSeeker.preferences.expectedSalary.currency} ${application.jobSeeker.preferences.expectedSalary.min.toLocaleString()} - ${application.jobSeeker.preferences.expectedSalary.max.toLocaleString()}`}
-                                </div>
-                              )}
-                              <div>
-                                <span className="font-medium">Remote Work: </span>
-                                {application.jobSeeker?.preferences?.remoteWork ? 'Yes' : 'No'}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Application Details Section */}
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <h4 className="font-medium text-gray-900 mb-2">Application Details</h4>
-                            <div className="grid grid-cols-1 gap-2 text-gray-600">
-                              <div>
-                                <span className="font-medium">Applied on: </span>
-                                {new Date(application.createdAt).toLocaleDateString()} at {new Date(application.createdAt).toLocaleTimeString()}
-                              </div>
-                              {application.coverLetter && (
-                                <div>
-                                  <span className="font-medium">Cover Letter:</span>
-                                  <p className="mt-1 whitespace-pre-line">{application.coverLetter}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-4 text-gray-500">
-                            <div>
-                              <span className="font-medium">Company: </span>
-                              {application.job?.employer?.companyName}
-                            </div>
-                            <div>
-                              <span className="font-medium">Applied on: </span>
-                              {new Date(application.createdAt).toLocaleDateString()}
-                            </div>
-                          </div>
-                          {application.coverLetter && (
-                            <div className="mt-2 text-sm text-gray-600">
-                              <p className="font-medium">Cover Letter:</p>
-                              <p className="mt-1 whitespace-pre-line">{application.coverLetter}</p>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
+                  <div className="flex flex-col">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {application.job.title}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {application.job.employer?.companyName}
+                    </p>
                   </div>
-                  {user.role === "employer" && application.status === "pending" ? (
-                    <div className="mt-4 sm:mt-0 sm:ml-6 flex flex-shrink-0 gap-2">
-                      <button
-                        onClick={() => handleStatusUpdate(application._id, "accepted")}
-                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => handleStatusUpdate(application._id, "rejected")}
-                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  ) : (
-                    user.role === "jobseeker" && application.status === "pending" && (
-                      <div className="mt-4 sm:mt-0 sm:ml-6">
-                        <button
-                          onClick={() => handleWithdraw(application._id)}
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        >
-                          Withdraw
-                        </button>
-                      </div>
-                    )
-                  )}
+                  <StatusBadge status={application.status} />
                 </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+
+                <div className="mt-2 sm:flex sm:justify-between">
+                  <div className="sm:flex">
+                    {application.job.location && (
+                      <p className="flex items-center text-sm text-gray-500">
+                        <svg
+                          className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400"
+                          fill="none"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {application.job.location.city},{" "}
+                        {application.job.location.country}
+                      </p>
+                    )}
+                    <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
+                      <svg
+                        className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400"
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      {application.job.employmentType}
+                    </p>
+                  </div>
+                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                    <svg
+                      className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Applied on{" "}
+                    {new Date(application.createdAt).toLocaleDateString()}
+                  </div>
+                </div>
+
+                <div className="mt-2">
+                  <Link
+                    to={`/applications/${application._id}`}
+                    className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                  >
+                    View Details
+                  </Link>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };
