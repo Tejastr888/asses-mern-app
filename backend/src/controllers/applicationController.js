@@ -94,7 +94,6 @@ export const getJobApplications = async (req, res) => {
 // @route   GET /api/applications/me
 // @access  Private (Job Seeker only)
 export const getMyApplications = async (req, res) => {
-    console.log("Fetching applications for user:", req.user);
     try {
         // Validate user exists and has jobSeeker role
         if (!req.user || req.user.role !== 'jobseeker') {
@@ -281,6 +280,7 @@ export const scheduleInterview = async (req, res) => {
 // @route   PUT /api/applications/:id/withdraw
 // @access  Private (Job Seeker only)
 export const withdrawApplication = async (req, res) => {
+   
     try {
         // Find the application
         const application = await Application.findById(req.params.id);
@@ -289,12 +289,18 @@ export const withdrawApplication = async (req, res) => {
             return res.status(404).json({ message: 'Application not found' });
         }
 
+        const jobSeeker = await JobSeeker.findOne({ user: req.user._id });
+        if (!jobSeeker) {
+            return res.status(403).json({ message: 'Not authorized - Job Seeker not found' });
+        }
+
         // Check if user owns this application
-        if (application.jobSeeker.toString() !== req.user._id.toString()) {
+        if (application.jobSeeker.toString() !== jobSeeker._id.toString()) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
         // Check if application can be withdrawn
+        console.log("Application status:", application);
         if (['withdrawn', 'hired', 'rejected'].includes(application.status)) {
             return res.status(400).json({ 
                 message: `Cannot withdraw application that is already ${application.status}` 

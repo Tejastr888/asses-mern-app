@@ -1,240 +1,275 @@
-import React, { useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { Link } from "react-router-dom";
-import {
-  fetchApplications,
-  selectStatusCounts,
-  selectTotalApplications,
-} from "../features/applications/applicationsSlice";
-
-const StatusBadge = ({ status }) => {
-  const baseClasses =
-    "px-2 inline-flex text-xs leading-5 font-semibold rounded-full";
-  switch (status) {
-    case "pending":
-      return (
-        <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>
-          Pending
-        </span>
-      );
-    case "reviewed":
-      return (
-        <span className={`${baseClasses} bg-blue-100 text-blue-800`}>
-          Reviewed
-        </span>
-      );
-    case "shortlisted":
-      return (
-        <span className={`${baseClasses} bg-green-100 text-green-800`}>
-          Shortlisted
-        </span>
-      );
-    case "rejected":
-      return (
-        <span className={`${baseClasses} bg-red-100 text-red-800`}>
-          Rejected
-        </span>
-      );
-    case "hired":
-      return (
-        <span className={`${baseClasses} bg-purple-100 text-purple-800`}>
-          Hired
-        </span>
-      );
-    case "withdrawn":
-      return (
-        <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
-          Withdrawn
-        </span>
-      );
-    default:
-      return (
-        <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
-          {status}
-        </span>
-      );
-  }
-};
-
-const StatusFilter = ({ counts, currentStatus, onStatusChange }) => {
-  const statuses = [
-    { key: 'all', label: 'All' },
-    { key: 'pending', label: 'Pending' },
-    { key: 'reviewed', label: 'Reviewed' },
-    { key: 'shortlisted', label: 'Shortlisted' },
-    { key: 'hired', label: 'Hired' },
-    { key: 'rejected', label: 'Rejected' },
-    { key: 'withdrawn', label: 'Withdrawn' }
-  ];
-
-  return (
-    <div className="flex flex-wrap gap-2 mb-4">
-      {statuses.map(({ key, label }) => (
-        <button
-          key={key}
-          onClick={() => onStatusChange(key)}
-          className={`px-3 py-1 rounded-full text-sm font-medium ${
-            currentStatus === key
-              ? 'bg-indigo-100 text-indigo-800'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          {label}
-          {counts && key !== 'all' && (
-            <span className="ml-1 text-xs">({counts[key] || 0})</span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-};
+import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useParams } from 'react-router-dom';
+import { 
+  fetchApplications, 
+  withdrawApplication, 
+  updateApplicationStatus,
+  scheduleInterview 
+} from '../features/applications/applicationsSlice';
+import ApplicationCard from '../components/applications/ApplicationCard';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import { toast } from 'react-toastify';
 
 const Applications = () => {
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
+  const { jobId } = useParams();
   const { applications, isLoading, isError, message } = useSelector(
     (state) => state.applications
   );
-  const statusCounts = useSelector(selectStatusCounts);
-  const totalApplications = useSelector(selectTotalApplications);
-  const [currentStatus, setCurrentStatus] = React.useState('all');
-  const filteredApplications = React.useMemo(() => {
-    if (currentStatus === 'all') return applications;
-    return applications.filter(app => app.status === currentStatus);
-  }, [applications, currentStatus]);
+  const { user } = useSelector((state) => state.auth);
+  const [filter, setFilter] = useState('all');
+  const [interviewData, setInterviewData] = useState({
+    applicationId: null,
+    date: '',
+    time: '',
+    location: '',
+    notes: ''
+  });
+  const [showInterviewModal, setShowInterviewModal] = useState(false);  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        if (!user?.role) {
+          return;
+        }
 
-  useEffect(() => {
-    if (user) {
-      dispatch(fetchApplications(user.role));
+        await dispatch(fetchApplications({ 
+          type: user.role === 'employer' ? (jobId ? 'job' : 'received') : 'jobseeker',
+          jobId 
+        })).unwrap();
+      } catch (error) {
+        toast.error(error || 'Failed to fetch applications');
+      }
+    };
+
+    fetchData();
+  }, [dispatch, user?.role, jobId]);
+
+  // Debug log for current state
+  // console.log('Current applications state:', { applications, isLoading, isError, message });
+
+  const handleWithdraw = async (applicationId) => {
+    try {
+      await dispatch(withdrawApplication(applicationId)).unwrap();
+      toast.success('Application withdrawn successfully');
+    } catch (error) {
+      toast.error(error || 'Failed to withdraw application');
     }
-  }, [user, dispatch]);
+  };
+
+  const handleStatusUpdate = async (applicationId, newStatus) => {
+    try {
+      await dispatch(updateApplicationStatus({ applicationId, newStatus })).unwrap();
+      toast.success('Application status updated successfully');
+    } catch (error) {
+      toast.error(error || 'Failed to update application status');
+    }
+  };
+
+  const handleScheduleInterview = async (e) => {
+    e.preventDefault();
+    try {
+      await dispatch(scheduleInterview({
+        applicationId: interviewData.applicationId,
+        interviewDetails: {
+          date: interviewData.date,
+          time: interviewData.time,
+          location: interviewData.location,
+          notes: interviewData.notes
+        }
+      })).unwrap();
+      toast.success('Interview scheduled successfully');
+      setShowInterviewModal(false);
+    } catch (error) {
+      toast.error(error || 'Failed to schedule interview');
+    }
+  };
+
+  const openInterviewModal = (applicationId) => {
+    setInterviewData({ ...interviewData, applicationId });
+    setShowInterviewModal(true);
+  };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
-      </div>
-    );
-  }
+    return <LoadingSpinner />;
+  }  const filterApplications = () => {
+    // Ensure applications is an array and has items
+    const validApplications = Array.isArray(applications) ? applications : [];
 
-  if (isError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-500">Error: {message}</div>
-      </div>
-    );
-  }
+    if (filter === 'all') {
+      return validApplications;
+    }
 
-  if (totalApplications === 0) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <h2 className="text-2xl font-semibold mb-4">No Applications Found</h2>
-        <Link
-          to="/jobs"
-          className="text-indigo-600 hover:text-indigo-800 font-medium"
+    return validApplications.filter(app => {
+      if (!app) return false;
+      const appStatus = app.status?.toLowerCase() || '';
+      return appStatus === filter;
+    });
+  };
+
+  const getStatusFilters = () => {
+    const statuses = user.role === 'employer' 
+      ? ['pending', 'accepted', 'rejected', 'interviewed']
+      : ['pending', 'accepted', 'rejected', 'withdrawn'];
+    
+    return statuses.map(status => {
+      const count = applications.filter(app => app.status === status).length;
+      return (
+        <button
+          key={status}
+          onClick={() => setFilter(status)}
+          className={`px-4 py-2 rounded-lg capitalize transition-colors ${
+            filter === status
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
         >
-          Browse Jobs
-        </Link>
-      </div>
-    );
-  }
+          {status} ({count})
+        </button>
+      );
+    });
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">My Applications</h1>
-        <div className="text-gray-500">
-          Total Applications: <span className="font-semibold">{totalApplications}</span>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">
+          {user.role === 'employer' 
+            ? jobId 
+              ? 'Job Applications'
+              : 'All Received Applications'
+            : 'My Applications'
+          }
+        </h1>
+        <p className="text-gray-600">
+          {user.role === 'employer'
+            ? 'Manage and review job applications'
+            : 'Track and manage your job applications'
+          }
+        </p>
       </div>
+      
+      {/* Filter buttons */}
+      <div className="flex flex-wrap gap-4 mb-8">
+        <button
+          onClick={() => setFilter('all')}
+          className={`px-4 py-2 rounded-lg transition-colors ${
+            filter === 'all'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          All ({applications.length})
+        </button>
+        {getStatusFilters()}
+      </div>      {/* Applications list */}
+      {isError ? (
+        <div className="text-red-500 text-center py-4 bg-red-50 rounded-lg">
+          <p>{message}</p>
+        </div>
+      ) : isLoading ? (
+        <LoadingSpinner />
+      ) : !Array.isArray(applications) || applications.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <h3 className="text-gray-800 text-xl font-semibold mb-2">
+            {user.role === 'employer'
+              ? 'No applications received yet'
+              : 'No applications found'
+            }
+          </h3>
+          <p className="text-gray-600">
+            {user.role === 'employer'
+              ? 'Applications for your job postings will appear here'
+              : 'Start applying for jobs to see your applications here'
+            }
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filterApplications().map((application) => {
+            // console.log('Rendering application:', application);
+            return (
+              <ApplicationCard
+                key={application._id}
+                application={application}
+                userRole={user.role}
+                onWithdraw={handleWithdraw}
+                onStatusUpdate={handleStatusUpdate}
+                onScheduleInterview={openInterviewModal}
+              />
+            );
+          })}
+        </div>
+      )}
 
-      <StatusFilter
-        counts={statusCounts}
-        currentStatus={currentStatus}
-        onStatusChange={setCurrentStatus}
-      />
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {filteredApplications.map((application) => (
-            <li key={application._id} className="hover:bg-gray-50">
-              <div className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {application.job.title}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {application.job.employer?.companyName}
-                    </p>
-                  </div>
-                  <StatusBadge status={application.status} />
+      {/* Interview Modal */}
+      {showInterviewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">Schedule Interview</h2>
+            <form onSubmit={handleScheduleInterview}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={interviewData.date}
+                    onChange={(e) => setInterviewData({...interviewData, date: e.target.value})}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  />
                 </div>
-
-                <div className="mt-2 sm:flex sm:justify-between">
-                  <div className="sm:flex">
-                    {application.job.location && (
-                      <p className="flex items-center text-sm text-gray-500">
-                        <svg
-                          className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400"
-                          fill="none"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        {application.job.location.city},{" "}
-                        {application.job.location.country}
-                      </p>
-                    )}
-                    <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                      <svg
-                        className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400"
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      {application.job.employmentType}
-                    </p>
-                  </div>
-                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                    <svg
-                      className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Applied on{" "}
-                    {new Date(application.createdAt).toLocaleDateString()}
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={interviewData.time}
+                    onChange={(e) => setInterviewData({...interviewData, time: e.target.value})}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  />
                 </div>
-
-                <div className="mt-2">
-                  <Link
-                    to={`/applications/${application._id}`}
-                    className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
-                  >
-                    View Details
-                  </Link>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Location</label>
+                  <input
+                    type="text"
+                    required
+                    value={interviewData.location}
+                    onChange={(e) => setInterviewData({...interviewData, location: e.target.value})}
+                    placeholder="Enter interview location or meeting link"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Notes</label>
+                  <textarea
+                    value={interviewData.notes}
+                    onChange={(e) => setInterviewData({...interviewData, notes: e.target.value})}
+                    placeholder="Additional information for the candidate"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    rows="3"
+                  />
                 </div>
               </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowInterviewModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                >
+                  Schedule Interview
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
