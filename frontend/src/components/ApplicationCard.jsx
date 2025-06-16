@@ -26,10 +26,9 @@ const ApplicationCard = ({ application, onStatusUpdate, isEmployer }) => {
             </Link>
           </h3>
           <p className="text-gray-600 mb-2">
-            {isEmployer ? (
-              <>Applicant: {application.applicant.name}</>
+            {isEmployer ? (              <>Applicant: {application.jobSeeker?.user ? `${application.jobSeeker.user.firstName} ${application.jobSeeker.user.lastName}` : 'Unknown'}</>
             ) : (
-              <>Company: {application.job.company}</>
+              <>Company: {application.job.employer?.companyName}</>
             )}
           </p>
           <p className="text-sm text-gray-500">

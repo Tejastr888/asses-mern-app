@@ -1,5 +1,7 @@
 import Application from '../model/Application.js';
 import Job from '../model/Job.js';
+import Employer from '../model/Employer.js';
+import JobSeeker from '../model/JobSeeker.js';
 
 // @desc    Create job application
 // @route   POST /api/applications
@@ -22,11 +24,15 @@ export const createApplication = async (req, res) => {
 
         if (existingApplication) {
             return res.status(400).json({ message: 'Already applied to this job' });
+        }        // Get the JobSeeker document for the current user
+        const jobSeeker = await JobSeeker.findOne({ user: req.user._id });
+        if (!jobSeeker) {
+            return res.status(403).json({ message: 'Not authorized - JobSeeker profile not found' });
         }
 
         const application = await Application.create({
             job: jobId,
-            jobSeeker: req.user._id,
+            jobSeeker: jobSeeker._id, // Use JobSeeker document ID instead of User ID
             coverLetter,
             answers,
             status: 'pending'
@@ -168,15 +174,26 @@ export const updateApplicationStatus = async (req, res) => {
 
         // Find application and check if employer owns the related job
         const application = await Application.findById(req.params.id)
-            .populate('job');
+            .populate({
+                path: 'job',
+                populate: {
+                    path: 'employer'
+                }
+            });
 
         if (!application) {
             return res.status(404).json({ message: 'Application not found' });
         }
 
+        // Get the employer document associated with the current user
+        const employer = await Employer.findOne({ user: req.user._id });
+        if (!employer) {
+            return res.status(403).json({ message: 'Not authorized - Employer not found' });
+        }
+
         // Check if employer owns this job
-        if (application.job.employer.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ message: 'Not authorized' });
+        if (application.job.employer._id.toString() !== employer._id.toString()) {
+            return res.status(403).json({ message: 'Not authorized - Not your job posting' });
         }
 
         // Check if application can be updated
@@ -290,15 +307,27 @@ export const withdrawApplication = async (req, res) => {
 // @route   GET /api/applications/received
 // @access  Private (Employer only)
 export const getReceivedApplications = async (req, res) => {
-    try {        // First, get all jobs posted by this employer
-        const employerJobs = await Job.find({ employer: req.user._id }).select('_id');
+    try {
+        // First get the employer document for the current user
+        const employer = await Employer.findOne({ user: req.user._id });
+        if (!employer) {
+            return res.status(403).json({ message: 'Not authorized - Employer not found' });
+        }
+
+        // Get all jobs posted by this employer
+        const employerJobs = await Job.find({ employer: employer._id }).select('_id');
         const jobIds = employerJobs.map(job => job._id);
 
         // Then find applications for these jobs
         const applications = await Application.find({
             job: { $in: jobIds }
-        })
-            .populate('jobSeeker', 'name email phone')
+        })            .populate({
+                path: 'jobSeeker',
+                populate: {
+                    path: 'user',
+                    select: 'firstName lastName email'
+                }
+            })
             .populate({
                 path: 'job',
                 select: 'title status location jobType',

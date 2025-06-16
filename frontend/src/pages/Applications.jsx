@@ -134,23 +134,82 @@ const Applications = () => {
                         {application.job?.title}
                       </h3>
                       <StatusBadge status={application.status} />
+                    </div>                    <div className="mt-2 flex flex-col gap-2 text-sm">
+                      {user.role === "employer" ? (
+                        <>
+                          {/* Applicant Details Section */}
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <h4 className="font-medium text-gray-900 mb-2">Applicant Details</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-600">
+                              <div>
+                                <span className="font-medium">Name: </span>
+                                {application.jobSeeker?.user ? `${application.jobSeeker.user.firstName} ${application.jobSeeker.user.lastName}` : 'Unknown'}
+                              </div>
+                              <div>
+                                <span className="font-medium">Email: </span>
+                                {application.jobSeeker?.user?.email || 'N/A'}
+                              </div>
+                              <div>
+                                <span className="font-medium">Category: </span>
+                                {application.jobSeeker?.category ? application.jobSeeker.category.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : 'N/A'}
+                              </div>
+                              <div>
+                                <span className="font-medium">Skills: </span>
+                                {application.jobSeeker?.skills?.length > 0 
+                                  ? application.jobSeeker.skills.join(', ') 
+                                  : 'No skills listed'}
+                              </div>
+                              {application.jobSeeker?.preferences?.expectedSalary && (
+                                <div>
+                                  <span className="font-medium">Expected Salary: </span>
+                                  {`${application.jobSeeker.preferences.expectedSalary.currency} ${application.jobSeeker.preferences.expectedSalary.min.toLocaleString()} - ${application.jobSeeker.preferences.expectedSalary.max.toLocaleString()}`}
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-medium">Remote Work: </span>
+                                {application.jobSeeker?.preferences?.remoteWork ? 'Yes' : 'No'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Application Details Section */}
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <h4 className="font-medium text-gray-900 mb-2">Application Details</h4>
+                            <div className="grid grid-cols-1 gap-2 text-gray-600">
+                              <div>
+                                <span className="font-medium">Applied on: </span>
+                                {new Date(application.createdAt).toLocaleDateString()} at {new Date(application.createdAt).toLocaleTimeString()}
+                              </div>
+                              {application.coverLetter && (
+                                <div>
+                                  <span className="font-medium">Cover Letter:</span>
+                                  <p className="mt-1 whitespace-pre-line">{application.coverLetter}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-4 text-gray-500">
+                            <div>
+                              <span className="font-medium">Company: </span>
+                              {application.job?.employer?.companyName}
+                            </div>
+                            <div>
+                              <span className="font-medium">Applied on: </span>
+                              {new Date(application.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                          {application.coverLetter && (
+                            <div className="mt-2 text-sm text-gray-600">
+                              <p className="font-medium">Cover Letter:</p>
+                              <p className="mt-1 whitespace-pre-line">{application.coverLetter}</p>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
-                    <div className="mt-2 flex flex-col sm:flex-row sm:gap-4 text-sm text-gray-500">
-                      <div>
-                        {user.role === "employer" 
-                          ? `Applicant: ${application.applicant?.name}` 
-                          : `Company: ${application.job?.employer?.companyName}`}
-                      </div>
-                      <div>
-                        Applied on: {new Date(application.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                    {application.coverLetter && (
-                      <div className="mt-2 text-sm text-gray-600">
-                        <p className="font-medium">Cover Letter:</p>
-                        <p className="mt-1">{application.coverLetter}</p>
-                      </div>
-                    )}
                   </div>
                   {user.role === "employer" && application.status === "pending" ? (
                     <div className="mt-4 sm:mt-0 sm:ml-6 flex flex-shrink-0 gap-2">
