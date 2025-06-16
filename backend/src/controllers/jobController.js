@@ -1,18 +1,56 @@
 import Job from '../model/Job.js';
 import Application from '../model/Application.js';
+import Employer from '../model/Employer.js';
 
 // @desc    Create a new job posting
 // @route   POST /api/jobs
 // @access  Private (Employer only)
 export const createJob = async (req, res) => {
     try {
+        // Debug logs to check authentication and user data
+        // console.log('Auth Header:', req.headers.authorization);
+        // console.log('User Data:', req.user);
+        // console.log('User ID:', req.user?._id);
+        // console.log('User Role:', req.user?.role);
+        
+        if (!req.user) {
+            console.log('No user found in request');
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+
+        if (req.user.role !== 'employer') {
+            console.log('User role is not employer:', req.user.role);
+            return res.status(403).json({ message: 'Only employers can create jobs' });
+        }
+
+        // First, find the employer profile for this user
+        const employer = await Employer.findOne({ user: req.user._id });
+        
+        if (!employer) {
+            console.log('No employer profile found for user:', req.user._id);
+            return res.status(400).json({ 
+                message: 'Employer profile not found. Please complete your employer profile first.'
+            });
+        }
+
+        // console.log('Found employer profile:', employer);
+        // console.log('Creating job with employer ID:', employer._id);
+        
         const job = await Job.create({
             ...req.body,
-            employer: req.user._id,
+            employer: employer._id, // Use the Employer document ID, not the User ID
             publishedAt: req.body.status === 'published' ? Date.now() : null
         });
 
-        res.status(201).json(job);
+        console.log('Created job:', job);
+
+        // Fetch and log the created job with populated employer data
+        const populatedJob = await Job.findById(job._id)
+            .populate('employer', 'companyName location industry');
+        
+        // console.log('Populated job data:', populatedJob);
+
+        res.status(201).json(populatedJob);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
